@@ -7,12 +7,30 @@ function PhotoStrip({ photos, setPhotos }) {
   const [finalImage, setFinalImage] = useState(null)
   const [selectedFilter, setSelectedFilter] = useState(FILTERS[0])
   const [isGenerating, setIsGenerating] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     async function generateStrip() {
+      if (!photos || photos.length === 0) {
+        setError("No photos to display")
+        return
+      }
+      
       setIsGenerating(true)
-      const combined = await combineImages(photos, selectedFilter.id)
-      setFinalImage(combined)
+      setError(null)
+      
+      try {
+        const combined = await combineImages(photos, selectedFilter.id)
+        if (combined) {
+          setFinalImage(combined)
+        } else {
+          setError("Failed to generate polaroid strip")
+        }
+      } catch (err) {
+        console.error("Error generating strip:", err)
+        setError("An error occurred while generating the strip")
+      }
+      
       setIsGenerating(false)
     }
     generateStrip()
@@ -33,14 +51,26 @@ function PhotoStrip({ photos, setPhotos }) {
       <div className="w-full lg:w-1/2 flex flex-col items-center gap-4">
         <h3 className="text-lg font-semibold text-gray-200">Your Polaroid Strip</h3>
         
-        <div className="relative bg-gray-800/30 p-6 rounded-xl backdrop-blur-sm">
+        <div className="relative bg-gray-800/30 p-6 rounded-xl backdrop-blur-sm min-h-[200px] flex items-center justify-center">
           {isGenerating && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-900/50 rounded-xl z-10">
               <div className="animate-spin w-8 h-8 border-4 border-white border-t-transparent rounded-full"></div>
             </div>
           )}
           
-          {finalImage && (
+          {error && !isGenerating && (
+            <div className="text-red-400 text-center p-4">
+              <p>{error}</p>
+              <button 
+                onClick={() => setPhotos([])} 
+                className="mt-2 text-sm underline"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+          
+          {finalImage && !error && (
             <img 
               src={finalImage} 
               className="max-h-[500px] w-auto rounded-lg shadow-2xl transform hover:scale-[1.02] transition-transform duration-300" 

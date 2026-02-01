@@ -53,65 +53,78 @@ const applyFilter = (ctx, filter, width, height) => {
   ctx.putImageData(imageData, 0, 0)
 }
 
-export default function combineImages(images, filter = "none") {
-  return new Promise(resolve => {
-    const imgElements = []
-    let loaded = 0
-
-    images.forEach((src, index) => {
-      const img = new Image()
-      img.src = src
-      img.onload = () => {
-        loaded++
-        if (loaded === images.length) {
-          const width = imgElements[0].width
-          const height = imgElements[0].height
-
-          // Polaroid style dimensions
-          const padding = 40
-          const bottomPadding = 80
-          const photoGap = 20
-          
-          const canvas = document.createElement("canvas")
-          canvas.width = width + padding * 2
-          canvas.height = (height + photoGap) * images.length + bottomPadding + padding
-
-          const ctx = canvas.getContext("2d")
-
-          // White polaroid background with subtle shadow effect
-          ctx.fillStyle = "#fafafa"
-          ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-          // Add subtle border
-          ctx.strokeStyle = "#e0e0e0"
-          ctx.lineWidth = 2
-          ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2)
-
-          imgElements.forEach((img, i) => {
-            ctx.drawImage(
-              img,
-              padding,
-              padding + i * (height + photoGap),
-              width,
-              height
-            )
-          })
-
-          // Apply filter to the entire canvas
-          applyFilter(ctx, filter, canvas.width, canvas.height)
-
-          // Add a subtle date stamp at the bottom (polaroid style)
-          ctx.fillStyle = "#888"
-          ctx.font = "16px 'Courier New', monospace"
-          ctx.textAlign = "center"
-          const date = new Date().toLocaleDateString()
-          ctx.fillText(date, canvas.width / 2, canvas.height - 25)
-
-          resolve(canvas.toDataURL("image/png"))
-        }
-      }
-
-      imgElements.push(img)
-    })
+// Helper function to load a single image
+const loadImage = (src) => {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    // Only set crossOrigin for non-data URLs
+    if (!src.startsWith('data:')) {
+      img.crossOrigin = "anonymous"
+    }
+    img.onload = () => resolve(img)
+    img.onerror = (err) => {
+      console.error("Failed to load image:", src.substring(0, 50) + "...")
+      reject(err)
+    }
+    img.src = src
   })
+}
+
+export default async function combineImages(images, filter = "none") {
+  try {
+    // Load all images in parallel while preserving order
+    const imgElements = await Promise.all(images.map(src => loadImage(src)))
+
+    if (imgElements.length === 0) {
+      throw new Error("No images to combine")
+    }
+
+    const width = imgElements[0].width
+    const height = imgElements[0].height
+
+    // Polaroid style dimensions
+    const padding = 40
+    const bottomPadding = 80
+    const photoGap = 20
+    
+    const canvas = document.createElement("canvas")
+    canvas.width = width + padding * 2
+    canvas.height = (height + photoGap) * images.length + bottomPadding + padding
+
+    const ctx = canvas.getContext("2d")
+
+    // White polaroid background with subtle shadow effect
+    ctx.fillStyle = "#fafafa"
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Add subtle border
+    ctx.strokeStyle = "#e0e0e0"
+    ctx.lineWidth = 2
+    ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2)
+
+    imgElements.forEach((img, i) => {
+      ctx.drawImage(
+        img,
+        padding,
+        padding + i * (height + photoGap),
+        width,
+        height
+      )
+    })
+
+    // Apply filter to the entire canvas
+    applyFilter(ctx, filter, canvas.width, canvas.height)
+
+    // Add a subtle date stamp at the bottom (polaroid style)
+    ctx.fillStyle = "#888"
+    ctx.font = "16px 'Courier New', monospace"
+    ctx.textAlign = "center"
+    const date = new Date().toLocaleDateString()
+    ctx.fillText(date, canvas.width / 2, canvas.height - 25)
+
+    return canvas.toDataURL("image/png")
+  } catch (error) {
+    console.error("Error combining images:", error)
+    return null
+  }
 }
